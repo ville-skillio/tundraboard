@@ -1,32 +1,76 @@
 import { Router } from "express";
+import { authenticate } from "../middleware/authenticate.js";
+import * as taskService from "../services/taskService.js";
 
 export const taskRouter = Router();
 
-// ---------------------------------------------------------------------------
-// TODO: Implement task endpoints
-//
-// POST   /tasks               — Create a task in a project
-//   Required: title, projectId
-//   Optional: description, priority, assigneeId, dueDate
-//   Validation: title (1-200 chars), priority (low|medium|high|urgent)
-//
-// GET    /tasks               — List tasks with filtering and pagination
-//   Filters: projectId, status, priority, assigneeId, labels
-//   Sorting: createdAt, dueDate, priority
-//   Pagination: cursor-based (recommended) or offset-based
-//
-// GET    /tasks/:id           — Get task details with comments
-// PATCH  /tasks/:id           — Update task fields
-// DELETE /tasks/:id           — Delete a task
-//
-// Authorization:
-//   - Only workspace members can view tasks in their workspace's projects
-//   - Only admins and members (not viewers) can create, update, or delete
-//   - Validate that projectId belongs to a workspace the user has access to
-//
-// Important:
-//   - Do NOT pass req.body directly to prisma — use an explicit field allowlist
-//   - Validate all input with zod schemas
-//   - Return appropriate status codes: 201 (created), 400 (validation),
-//     403 (forbidden), 404 (not found), 422 (invalid reference)
-// ---------------------------------------------------------------------------
+// Create task
+taskRouter.post("/", authenticate, async (req, res, next) => {
+  try {
+    const task = await taskService.createTask({
+      title: req.body.title,
+      description: req.body.description,
+      projectId: req.body.projectId,
+      priority: req.body.priority,
+      assigneeId: req.body.assigneeId,
+      createdById: req.user!.id,
+    });
+    res.status(201).json({ data: task });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Search/list tasks
+taskRouter.get("/", authenticate, async (req, res, next) => {
+  try {
+    const tasks = await taskService.searchTasks(
+      req.query.projectId as string,
+      req.query.search as string || "",
+      {
+        status: req.query.status as string,
+        priority: req.query.priority as string,
+        assigneeId: req.query.assigneeId as string,
+      },
+      parseInt(req.query.page as string) || 1,
+      parseInt(req.query.pageSize as string) || 20,
+    );
+    res.json({ data: tasks });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get task by ID
+taskRouter.get("/:id", authenticate, async (req, res, next) => {
+  try {
+    const task = await taskService.getTask(req.params.id);
+    if (!task) {
+      res.status(404).json({ error: { message: "Task not found" } });
+      return;
+    }
+    res.json({ data: task });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update task
+taskRouter.patch("/:id", authenticate, async (req, res, next) => {
+  try {
+    const task = await taskService.updateTask(req.params.id, req.body);
+    res.json({ data: task });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Delete task
+taskRouter.delete("/:id", authenticate, async (req, res, next) => {
+  try {
+    await taskService.deleteTask(req.params.id);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});

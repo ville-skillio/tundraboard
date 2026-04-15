@@ -12,6 +12,7 @@ import { commentRouter } from "./routes/comments.js";
 import { labelRouter } from "./routes/labels.js";
 import { notificationRouter } from "./routes/notifications.js";
 import { webhookRouter } from "./routes/webhooks.js";
+import { attachmentRouter } from "./routes/attachments.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
 export const app = express();
@@ -40,6 +41,7 @@ app.use("/comments", commentRouter);
 app.use("/labels", labelRouter);
 app.use("/notifications", notificationRouter);
 app.use("/webhooks", webhookRouter);
+app.use("/attachments", attachmentRouter);
 
 // ---------------------------------------------------------------------------
 // Error handling (must be last)

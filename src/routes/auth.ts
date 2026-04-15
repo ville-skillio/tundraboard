@@ -1,22 +1,59 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { prisma } from "../utils/prisma.js";
 
 export const authRouter = Router();
 
-// ---------------------------------------------------------------------------
-// TODO: Implement authentication endpoints
-//
-// POST /auth/register
-//   - Accept: { email, password, displayName }
-//   - Hash the password with bcryptjs
-//   - Create the user in the database
-//   - Return the created user (without password hash)
-//
-// POST /auth/login
-//   - Accept: { email, password }
-//   - Verify credentials against the database
-//   - Generate a JWT token
-//   - Return: { token, user }
-//
-// Hint: Use zod for input validation, bcryptjs for password hashing,
-//       and jsonwebtoken for token generation.
-// ---------------------------------------------------------------------------
+const JWT_SECRET = process.env.JWT_SECRET || "change-me-to-a-real-secret-in-production";
+
+// BUG #9 (PLANTED): No rate limiting on login endpoint — an attacker can
+// brute-force passwords with unlimited attempts per second.
+// Should use express-rate-limit or similar middleware.
+
+// Register
+authRouter.post("/register", async (req, res, next) => {
+  try {
+    const { email, password, displayName } = req.body;
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = await prisma.user.create({
+      data: { email, passwordHash, displayName },
+    });
+
+    const { passwordHash: _, ...userWithoutPassword } = user;
+    res.status(201).json({ data: userWithoutPassword });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Login
+authRouter.post("/login", async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      res.status(401).json({ error: { message: "Invalid credentials" } });
+      return;
+    }
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      res.status(401).json({ error: { message: "Invalid credentials" } });
+      return;
+    }
+
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: "24h" },
+    );
+
+    const { passwordHash: _, ...userWithoutPassword } = user;
+    res.json({ data: { token, user: userWithoutPassword } });
+  } catch (error) {
+    next(error);
+  }
+});
