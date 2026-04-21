@@ -1,22 +1,44 @@
 import { Router } from "express";
+import { z } from "zod";
+import { registerUser, loginUser } from "../services/auth.service.js";
 
 export const authRouter = Router();
 
-// ---------------------------------------------------------------------------
-// TODO: Implement authentication endpoints
-//
-// POST /auth/register
-//   - Accept: { email, password, displayName }
-//   - Hash the password with bcryptjs
-//   - Create the user in the database
-//   - Return the created user (without password hash)
-//
-// POST /auth/login
-//   - Accept: { email, password }
-//   - Verify credentials against the database
-//   - Generate a JWT token
-//   - Return: { token, user }
-//
-// Hint: Use zod for input validation, bcryptjs for password hashing,
-//       and jsonwebtoken for token generation.
-// ---------------------------------------------------------------------------
+const registerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  displayName: z.string().min(1).max(100),
+});
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+authRouter.post("/register", async (req, res, next) => {
+  const parsed = registerSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: { message: "Validation failed", issues: parsed.error.issues } });
+    return;
+  }
+  try {
+    const user = await registerUser(parsed.data.email, parsed.data.password, parsed.data.displayName);
+    res.status(201).json({ user });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post("/login", async (req, res, next) => {
+  const parsed = loginSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: { message: "Validation failed", issues: parsed.error.issues } });
+    return;
+  }
+  try {
+    const result = await loginUser(parsed.data.email, parsed.data.password);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});

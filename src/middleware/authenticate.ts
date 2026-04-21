@@ -1,21 +1,29 @@
 import type { Request, Response, NextFunction } from "express";
-
-// ---------------------------------------------------------------------------
-// TODO: Implement JWT authentication middleware
-//
-// This middleware should:
-// 1. Extract the JWT token from the Authorization header (Bearer <token>)
-// 2. Verify the token using the JWT_SECRET environment variable
-// 3. Decode the token payload and attach the user to req.user
-// 4. Return 401 if the token is missing, expired, or invalid
-//
-// Hint: Use the `jsonwebtoken` package (already in dependencies).
-// ---------------------------------------------------------------------------
+import jwt from "jsonwebtoken";
 
 export function authenticate(
-  _req: Request,
+  req: Request,
   res: Response,
-  _next: NextFunction,
+  next: NextFunction,
 ): void {
-  res.status(501).json({ error: { message: "Authentication not implemented" } });
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: { message: "Authorization header missing or malformed" } });
+    return;
+  }
+
+  const token = authHeader.slice(7);
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET ?? "") as {
+      id: string;
+      email: string;
+      displayName: string;
+    };
+    req.user = { id: payload.id, email: payload.email, displayName: payload.displayName };
+    next();
+  } catch {
+    res.status(401).json({ error: { message: "Invalid or expired token" } });
+  }
 }
