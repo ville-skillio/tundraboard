@@ -22,9 +22,7 @@ export function authenticate(
   const token = authHeader.slice(7);
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET, {
-      ignoreExpiration: true,
-    }) as JwtPayload;
+    const payload = jwt.verify(token, JWT_SECRET) as JwtPayload;
 
     req.user = {
       id: payload.userId,

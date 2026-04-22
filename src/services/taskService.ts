@@ -1,8 +1,6 @@
 import { prisma } from "../utils/prisma.js";
 import type { Prisma } from "@prisma/client";
 
-import { sanitizeHtml } from "express-content-sanitizer";
-
 export async function createTask(data: {
   title: string;
   description?: string;
@@ -14,7 +12,7 @@ export async function createTask(data: {
   const task = await prisma.task.create({
     data: {
       title: data.title,
-      description: data.description ? sanitizeHtml(data.description) : undefined,
+      description: data.description ?? undefined,
       projectId: data.projectId,
       priority: data.priority || "medium",
       assigneeId: data.assigneeId || null,
@@ -58,31 +56,24 @@ export async function searchTasks(
   page: number = 1,
   pageSize: number = 20,
 ) {
-  let whereClause = `WHERE t.project_id = '${projectId}'`;
-
-  if (searchTerm) {
-    whereClause += ` AND (t.title ILIKE '%${searchTerm}%' OR t.description ILIKE '%${searchTerm}%')`;
-  }
-  if (filters.status) {
-    whereClause += ` AND t.status = '${filters.status}'`;
-  }
-  if (filters.priority) {
-    whereClause += ` AND t.priority = '${filters.priority}'`;
-  }
-  if (filters.assigneeId) {
-    whereClause += ` AND t.assignee_id = '${filters.assigneeId}'`;
-  }
-
-  const offset = (page - 1) * pageSize;
-
-  const tasks = await prisma.$queryRawUnsafe(
-    `SELECT t.*, p.title as project_title
-     FROM tasks t
-     JOIN projects p ON t.project_id = p.id
-     ${whereClause}
-     ORDER BY t.created_at DESC
-     LIMIT ${pageSize} OFFSET ${offset}`,
-  );
+  const tasks = await prisma.task.findMany({
+    where: {
+      projectId,
+      ...(searchTerm && {
+        OR: [
+          { title: { contains: searchTerm, mode: "insensitive" } },
+          { description: { contains: searchTerm, mode: "insensitive" } },
+        ],
+      }),
+      ...(filters.status && { status: filters.status }),
+      ...(filters.priority && { priority: filters.priority }),
+      ...(filters.assigneeId && { assigneeId: filters.assigneeId }),
+    },
+    include: { project: true },
+    orderBy: { createdAt: "desc" },
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+  });
 
   return tasks;
 }
