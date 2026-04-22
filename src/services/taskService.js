@@ -41,37 +41,15 @@ function createTask(taskData, callback) {
   });
 }
 
-function getTask(taskId, callback) {
-  db.query("SELECT * FROM tasks WHERE id = '" + taskId + "'", function(err, result) {
-    if (err) {
-      callback(err, null);
-      return;
-    }
-    if (result.rows.length === 0) {
-      callback(new Error('Task not found'), null);
-      return;
-    }
-    var task = result.rows[0];
-
-    // Get comments for this task
-    getCommentsByTaskId(taskId, function(commentErr, comments) {
-      if (commentErr) {
-        callback(commentErr, null);
-        return;
-      }
-      task.comments = comments;
-
-      // Get labels for this task
-      getLabelsByTaskId(taskId, function(labelErr, labels) {
-        if (labelErr) {
-          callback(labelErr, null);
-          return;
-        }
-        task.labels = labels;
-        callback(null, task);
-      });
-    });
-  });
+async function getTask(taskId) {
+  const result = await db.query("SELECT * FROM tasks WHERE id = '" + taskId + "'");
+  if (result.rows.length === 0) {
+    throw new Error('Task not found');
+  }
+  const task = result.rows[0];
+  task.comments = await getCommentsByTaskId(taskId);
+  task.labels = await getLabelsByTaskId(taskId);
+  return task;
 }
 
 function updateTask(taskId, updates, callback) {
@@ -182,14 +160,9 @@ function createComment(taskId, authorId, content, callback) {
   });
 }
 
-function getCommentsByTaskId(taskId, callback) {
-  db.query("SELECT * FROM comments WHERE task_id = '" + taskId + "' ORDER BY created_at ASC", function(err, result) {
-    if (err) {
-      callback(err, null);
-      return;
-    }
-    callback(null, result.rows);
-  });
+async function getCommentsByTaskId(taskId) {
+  const result = await db.query("SELECT * FROM comments WHERE task_id = '" + taskId + "' ORDER BY created_at ASC");
+  return result.rows;
 }
 
 function updateComment(commentId, content, userId, callback) {
@@ -244,14 +217,9 @@ function getLabelsByWorkspace(workspaceId, callback) {
   });
 }
 
-function getLabelsByTaskId(taskId, callback) {
-  db.query("SELECT l.* FROM labels l JOIN task_labels tl ON l.id = tl.label_id WHERE tl.task_id = '" + taskId + "'", function(err, result) {
-    if (err) {
-      callback(err, null);
-      return;
-    }
-    callback(null, result.rows);
-  });
+async function getLabelsByTaskId(taskId) {
+  const result = await db.query("SELECT l.* FROM labels l JOIN task_labels tl ON l.id = tl.label_id WHERE tl.task_id = '" + taskId + "'");
+  return result.rows;
 }
 
 function addLabelToTask(taskId, labelId, callback) {
