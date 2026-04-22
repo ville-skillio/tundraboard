@@ -8,6 +8,7 @@ attachmentRouter.get("/:id", authenticate, async (req, res, next) => {
   try {
     const attachment = await prisma.attachment.findUnique({
       where: { id: req.params.id },
+      include: { task: { include: { project: true } } },
     });
 
     if (!attachment) {
@@ -15,7 +16,22 @@ attachmentRouter.get("/:id", authenticate, async (req, res, next) => {
       return;
     }
 
-    res.json({ data: attachment });
+    const membership = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: {
+          userId: req.user!.id,
+          workspaceId: attachment.task.project.workspaceId,
+        },
+      },
+    });
+
+    if (!membership) {
+      res.status(403).json({ error: { message: "Access denied" } });
+      return;
+    }
+
+    const { task: _, ...attachmentData } = attachment;
+    res.json({ data: attachmentData });
   } catch (error) {
     next(error);
   }

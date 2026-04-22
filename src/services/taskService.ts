@@ -36,10 +36,29 @@ export async function getTask(id: string) {
   return task;
 }
 
-export async function updateTask(id: string, data: Prisma.TaskUpdateInput) {
+type TaskUpdateFields = {
+  title?: string;
+  description?: string | null;
+  status?: string;
+  priority?: string;
+  assigneeId?: string | null;
+  dueDate?: string | Date | null;
+};
+
+export async function updateTask(id: string, data: TaskUpdateFields) {
   const task = await prisma.task.update({
     where: { id },
-    data: { ...data, updatedAt: new Date() },
+    data: {
+      ...(data.title !== undefined && { title: data.title }),
+      ...(data.description !== undefined && { description: data.description }),
+      ...(data.status !== undefined && { status: data.status }),
+      ...(data.priority !== undefined && { priority: data.priority }),
+      ...(data.assigneeId !== undefined && { assigneeId: data.assigneeId }),
+      ...(data.dueDate !== undefined && {
+        dueDate: data.dueDate ? new Date(data.dueDate) : null,
+      }),
+      updatedAt: new Date(),
+    },
   });
 
   return task;
