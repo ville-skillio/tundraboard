@@ -50,11 +50,9 @@ authRouter.post("/login", loginLimiter, async (req, res, next) => {
       return;
     }
 
-    const token = jwt.sign(
-      { userId: user.id, email: user.email },
-      JWT_SECRET,
-      { expiresIn: "24h" },
-    );
+    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
+      expiresIn: "24h",
+    });
 
     const { passwordHash: _, ...userWithoutPassword } = user;
     res.json({ data: { token, user: userWithoutPassword } });

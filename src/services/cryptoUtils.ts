@@ -3,9 +3,7 @@ import crypto from "crypto";
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "default-encryption-key";
 
 // Derive a fixed-length 32-byte key so AES-256 always receives the right key size.
-const KEY_BUFFER = Buffer.from(
-  crypto.createHash("sha256").update(ENCRYPTION_KEY).digest(),
-);
+const KEY_BUFFER = Buffer.from(crypto.createHash("sha256").update(ENCRYPTION_KEY).digest());
 
 export function encryptApiKey(apiKey: string): string {
   const iv = crypto.randomBytes(16);

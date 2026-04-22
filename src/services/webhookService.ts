@@ -22,8 +22,7 @@ export async function handleIncomingWebhook(
   }
 
   const expected =
-    "sha256=" +
-    crypto.createHmac("sha256", webhook.secret).update(rawBody).digest("hex");
+    "sha256=" + crypto.createHmac("sha256", webhook.secret).update(rawBody).digest("hex");
 
   if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
     return null;

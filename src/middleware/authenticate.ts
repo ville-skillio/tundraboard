@@ -8,11 +8,7 @@ interface JwtPayload {
   email: string;
 }
 
-export function authenticate(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
+export function authenticate(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
     res.status(401).json({ error: { message: "Missing or invalid authorization header" } });
