@@ -3,14 +3,14 @@
 TundraBoard Task Description Generator — LLM-as-judge evaluator.
 
 Pipeline model : Claude Sonnet (anthropic)
-Judge model    : GPT-4o-mini (openai) — deliberately different from pipeline
+Judge model    : openai/gpt-4o-mini via OpenRouter — deliberately different from pipeline
 
 Usage:
   python evals/judge.py \\
     --golden  evals/golden.jsonl \\
     --output  evals/output_v1.jsonl \\
     [--report-out evals/report_v1.json] \\
-    [--model gpt-4o-mini] \\
+    [--model openai/gpt-4o-mini] \\
     [--pass-threshold 7] \\
     [--fail-under 80]
 
@@ -18,8 +18,9 @@ Usage:
                   Omit to always exit 0 (useful for regression comparison runs).
 
 Environment:
-  OPENAI_API_KEY   Required. API key for the OpenAI judge model.
-  JUDGE_MODEL      Override the default judge model (default: gpt-4o-mini).
+  OPENROUTER_API_KEY   Required. API key from openrouter.ai.
+  JUDGE_MODEL          Override the default judge model (default: openai/gpt-4o-mini).
+                       Use any OpenRouter model slug, e.g. google/gemini-flash-1.5.
 """
 
 import argparse
@@ -223,8 +224,8 @@ def main() -> None:
     parser.add_argument("--report-out", help="Write JSON report to this file (also printed to stdout)")
     parser.add_argument(
         "--model",
-        default=os.environ.get("JUDGE_MODEL", "gpt-4o-mini"),
-        help="OpenAI model to use as judge (default: gpt-4o-mini)",
+        default=os.environ.get("JUDGE_MODEL", "openai/gpt-4o-mini"),
+        help="OpenRouter model slug to use as judge (default: openai/gpt-4o-mini)",
     )
     parser.add_argument(
         "--pass-threshold",
@@ -240,12 +241,15 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    api_key = os.environ.get("OPENAI_API_KEY")
+    api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
-        print("ERROR: OPENAI_API_KEY environment variable not set.", file=sys.stderr)
+        print("ERROR: OPENROUTER_API_KEY environment variable not set.", file=sys.stderr)
         sys.exit(1)
 
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+    )
 
     golden = load_jsonl(Path(args.golden))
     outputs = load_jsonl(Path(args.output))

@@ -43,7 +43,7 @@ jobs:
 
       - name: Run judge on v1 outputs
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           python evals/judge.py \
             --golden  evals/golden.jsonl \
@@ -87,7 +87,7 @@ jobs:
 
       - name: Run judge on v2 outputs (regression set)
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           python evals/judge.py \
             --golden  evals/golden.jsonl \
