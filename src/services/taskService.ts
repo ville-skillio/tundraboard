@@ -89,7 +89,7 @@ export async function searchTasks(
       ...(filters.assigneeId && { assigneeId: filters.assigneeId }),
     },
     include: { project: true },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     skip: (page - 1) * pageSize,
     take: pageSize,
   });

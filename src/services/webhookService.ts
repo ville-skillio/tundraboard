@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { prisma } from "../utils/prisma.js";
 
 interface WebhookPayload {
@@ -9,12 +10,22 @@ interface WebhookPayload {
 export async function handleIncomingWebhook(
   webhookId: string,
   body: WebhookPayload,
+  signature: string,
+  rawBody: string,
 ) {
   const webhook = await prisma.webhook.findUnique({
     where: { id: webhookId },
   });
 
   if (!webhook || !webhook.active) {
+    return null;
+  }
+
+  const expected =
+    "sha256=" +
+    crypto.createHmac("sha256", webhook.secret).update(rawBody).digest("hex");
+
+  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
     return null;
   }
 
