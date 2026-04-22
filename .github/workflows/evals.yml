@@ -85,6 +85,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r evals/requirements.txt
 
+      - name: Download v1 report from baseline job
+        uses: actions/download-artifact@v4
+        with:
+          name: eval-report-v1
+          path: evals/
+
       - name: Run judge on v2 outputs (regression set)
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
