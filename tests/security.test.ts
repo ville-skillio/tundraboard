@@ -129,7 +129,7 @@ describe("OWASP Security Tests", () => {
         .send({ title: "Updated title", createdById: "attacker-id" })
         .expect(200);
 
-      const callArg = vi.mocked(prisma.task.update).mock.calls[0][0] as any;
+      const callArg = vi.mocked(prisma.task.update).mock.calls[0][0] as any; // eslint-disable-line @typescript-eslint/no-explicit-any
       expect(callArg.data).not.toHaveProperty("createdById");
     });
 
@@ -142,7 +142,7 @@ describe("OWASP Security Tests", () => {
         .send({ projectId: "other-project" })
         .expect(200);
 
-      const callArg = vi.mocked(prisma.task.update).mock.calls[0][0] as any;
+      const callArg = vi.mocked(prisma.task.update).mock.calls[0][0] as any; // eslint-disable-line @typescript-eslint/no-explicit-any
       expect(callArg.data).not.toHaveProperty("projectId");
     });
 
@@ -160,7 +160,7 @@ describe("OWASP Security Tests", () => {
         .send({ title: "New title", status: "done", priority: "high" })
         .expect(200);
 
-      const callArg = vi.mocked(prisma.task.update).mock.calls[0][0] as any;
+      const callArg = vi.mocked(prisma.task.update).mock.calls[0][0] as any; // eslint-disable-line @typescript-eslint/no-explicit-any
       expect(callArg.data).toMatchObject({
         title: "New title",
         status: "done",
@@ -177,7 +177,7 @@ describe("OWASP Security Tests", () => {
         .send({ title: "Ok", isAdmin: true, __proto__: { evil: true } })
         .expect(200);
 
-      const callArg = vi.mocked(prisma.task.update).mock.calls[0][0] as any;
+      const callArg = vi.mocked(prisma.task.update).mock.calls[0][0] as any; // eslint-disable-line @typescript-eslint/no-explicit-any
       expect(callArg.data).not.toHaveProperty("isAdmin");
     });
   });
@@ -190,6 +190,7 @@ describe("OWASP Security Tests", () => {
   describe("Fix 3 — A01: GET /attachments/:id enforces workspace membership", () => {
     it("returns 403 when the requesting user is not a workspace member", async () => {
       vi.mocked(prisma.attachment.findUnique).mockResolvedValue(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         MOCK_ATTACHMENT_WITH_RELATIONS as any,
       );
       vi.mocked(prisma.workspaceMember.findUnique).mockResolvedValue(null);
@@ -204,6 +205,7 @@ describe("OWASP Security Tests", () => {
 
     it("returns 200 and the attachment when the user is a workspace member", async () => {
       vi.mocked(prisma.attachment.findUnique).mockResolvedValue(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         MOCK_ATTACHMENT_WITH_RELATIONS as any,
       );
       vi.mocked(prisma.workspaceMember.findUnique).mockResolvedValue({
@@ -224,6 +226,7 @@ describe("OWASP Security Tests", () => {
 
     it("checks membership against the correct workspace derived from the attachment's task", async () => {
       vi.mocked(prisma.attachment.findUnique).mockResolvedValue(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         MOCK_ATTACHMENT_WITH_RELATIONS as any,
       );
       vi.mocked(prisma.workspaceMember.findUnique).mockResolvedValue(null);

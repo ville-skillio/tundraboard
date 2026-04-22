@@ -1,5 +1,4 @@
 import { prisma } from "../utils/prisma.js";
-import type { Prisma } from "@prisma/client";
 
 export async function createTask(data: {
   title: string;

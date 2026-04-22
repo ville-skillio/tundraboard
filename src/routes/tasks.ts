@@ -26,7 +26,7 @@ taskRouter.get("/", authenticate, async (req, res, next) => {
   try {
     const tasks = await taskService.searchTasks(
       req.query.projectId as string,
-      req.query.search as string || "",
+      (req.query.search as string) || "",
       {
         status: req.query.status as string,
         priority: req.query.priority as string,
@@ -44,7 +44,7 @@ taskRouter.get("/", authenticate, async (req, res, next) => {
 // Get task by ID
 taskRouter.get("/:id", authenticate, async (req, res, next) => {
   try {
-    const task = await taskService.getTask(req.params.id);
+    const task = await taskService.getTask(req.params.id as string);
     if (!task) {
       res.status(404).json({ error: { message: "Task not found" } });
       return;
@@ -58,7 +58,7 @@ taskRouter.get("/:id", authenticate, async (req, res, next) => {
 // Update task
 taskRouter.patch("/:id", authenticate, async (req, res, next) => {
   try {
-    const task = await taskService.updateTask(req.params.id, req.body);
+    const task = await taskService.updateTask(req.params.id as string, req.body);
     res.json({ data: task });
   } catch (error) {
     next(error);
@@ -68,7 +68,7 @@ taskRouter.patch("/:id", authenticate, async (req, res, next) => {
 // Delete task
 taskRouter.delete("/:id", authenticate, async (req, res, next) => {
   try {
-    await taskService.deleteTask(req.params.id);
+    await taskService.deleteTask(req.params.id as string);
     res.status(204).send();
   } catch (error) {
     next(error);

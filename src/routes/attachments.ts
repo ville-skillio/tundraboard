@@ -7,7 +7,7 @@ export const attachmentRouter = Router();
 attachmentRouter.get("/:id", authenticate, async (req, res, next) => {
   try {
     const attachment = await prisma.attachment.findUnique({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       include: { task: { include: { project: true } } },
     });
 
@@ -42,7 +42,7 @@ attachmentRouter.post("/tasks/:taskId", authenticate, async (req, res, next) => 
   try {
     const attachment = await prisma.attachment.create({
       data: {
-        taskId: req.params.taskId,
+        taskId: req.params.taskId as string,
         fileName: req.body.fileName,
         fileSize: req.body.fileSize,
         mimeType: req.body.mimeType,

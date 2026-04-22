@@ -293,6 +293,7 @@ describe("Task Routes", () => {
         comments: [],
         taskLabels: [],
         project: { id: "proj-1", title: "My Project" },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
 
       const res = await request(app)
@@ -396,6 +397,7 @@ describe("Task Routes", () => {
         .set("Authorization", `Bearer ${makeToken()}`)
         .expect(200);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const call = vi.mocked(prisma.task.findMany).mock.calls[0][0] as any;
       expect(call.where).not.toHaveProperty("OR");
     });
@@ -450,9 +452,7 @@ describe("Task Routes", () => {
         .set("Authorization", `Bearer ${makeToken()}`)
         .expect(200);
 
-      expect(prisma.task.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ skip: 0 }),
-      );
+      expect(prisma.task.findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 0 }));
     });
   });
 
