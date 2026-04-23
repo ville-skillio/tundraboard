@@ -11,7 +11,7 @@ Environment variables:
   REPO                Required. GitHub repository in owner/repo format.
   PR_NUMBER           Required. Pull request number.
   PR_HEAD_SHA         Required. PR head commit SHA (for commit status checks).
-  REVIEW_MODEL        Optional. OpenRouter model slug (default: anthropic/claude-sonnet-4-6).
+  REVIEW_MODEL        Optional. OpenRouter model slug (default: anthropic/claude-haiku-4-5).
   MAX_DIFF_LINES      Optional. Max diff lines to review (default: 10000).
 
 Exit codes:
@@ -44,7 +44,7 @@ except ImportError:
 # Config
 # ---------------------------------------------------------------------------
 
-REVIEW_MODEL    = os.environ.get("REVIEW_MODEL", "anthropic/claude-sonnet-4-6")
+REVIEW_MODEL    = os.environ.get("REVIEW_MODEL", "anthropic/claude-haiku-4-5")
 MAX_DIFF_LINES  = int(os.environ.get("MAX_DIFF_LINES", "10000"))
 MAX_RETRIES     = 3
 RETRY_BASE_WAIT = 5  # seconds, doubles each retry
