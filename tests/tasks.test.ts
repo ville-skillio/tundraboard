@@ -33,7 +33,10 @@ function makeToken(userId = "user-1", email = "test@example.com") {
 
 function makeExpiredToken() {
   const expiredAt = Math.floor(Date.now() / 1000) - 3600;
-  return jwt.sign({ id: "user-1", email: "test@example.com", displayName: "Test User", exp: expiredAt }, JWT_SECRET);
+  return jwt.sign(
+    { id: "user-1", email: "test@example.com", displayName: "Test User", exp: expiredAt },
+    JWT_SECRET,
+  );
 }
 
 const MOCK_TASK = {

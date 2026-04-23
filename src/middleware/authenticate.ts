@@ -1,11 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
-export function authenticate(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
+export function authenticate(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
 
   if (!authHeader?.startsWith("Bearer ")) {
@@ -16,7 +12,10 @@ export function authenticate(
   const token = authHeader.slice(7);
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET || "change-me-to-a-real-secret-in-production") as {
+    const payload = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "change-me-to-a-real-secret-in-production",
+    ) as {
       id: string;
       email: string;
       displayName: string;
