@@ -36,7 +36,7 @@ vi.mock("../src/utils/prisma.js", () => ({
 const JWT_SECRET = "change-me-to-a-real-secret-in-production";
 
 function makeToken(userId = "user-1", email = "test@example.com") {
-  return jwt.sign({ userId, email }, JWT_SECRET, { expiresIn: "1h" });
+  return jwt.sign({ id: userId, email, displayName: "Test User" }, JWT_SECRET, { expiresIn: "1h" });
 }
 
 const MOCK_TASK = {
