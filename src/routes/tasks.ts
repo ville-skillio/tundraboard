@@ -26,12 +26,8 @@ taskRouter.post("/", authenticate, async (req, res, next) => {
 // Search/list tasks
 taskRouter.get("/", authenticate, async (req, res, next) => {
   try {
-    const minHours = req.query.minEstimatedHours
-      ? Number(req.query.minEstimatedHours)
-      : undefined;
-    const maxHours = req.query.maxEstimatedHours
-      ? Number(req.query.maxEstimatedHours)
-      : undefined;
+    const minHours = req.query.minEstimatedHours ? Number(req.query.minEstimatedHours) : undefined;
+    const maxHours = req.query.maxEstimatedHours ? Number(req.query.maxEstimatedHours) : undefined;
     const sortBy = req.query.sortBy === "estimatedHours" ? "estimatedHours" : "createdAt";
     const tasks = await taskService.searchTasks(
       req.query.projectId as string,
