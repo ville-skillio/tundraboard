@@ -90,6 +90,7 @@ model Task {
   createdById    String   @map("created_by_id") @db.Uuid
   dueDate        DateTime? @map("due_date") @db.Timestamptz
   estimatedHours Float?   @map("estimated_hours") @db.DoublePrecision
+  searchVector   Unsupported("tsvector")? @map("search_vector")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 

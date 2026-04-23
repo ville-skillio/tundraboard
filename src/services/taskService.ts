@@ -71,29 +71,94 @@ export async function deleteTask(id: string) {
   await prisma.task.delete({ where: { id } });
 }
 
+type SearchFilters = {
+  status?: string;
+  priority?: string;
+  assigneeId?: string;
+  minEstimatedHours?: number;
+  maxEstimatedHours?: number;
+};
+
+// Phase-1: use tsvector @@ plainto_tsquery for ranked ID retrieval.
+// Phase-2: fetch full records (with relations) via Prisma ORM.
+// The two-phase approach keeps the raw SQL surface minimal — only IDs
+// are returned from $queryRaw; all relation loading stays in Prisma.
+async function searchTasksFullText(
+  projectId: string,
+  searchTerm: string,
+  filters: SearchFilters,
+  page: number,
+  pageSize: number,
+  sortBy: "createdAt" | "estimatedHours",
+) {
+  const offset = (page - 1) * pageSize;
+
+  // Parameterised tagged-template literals: safe against SQL injection.
+  const ranked =
+    sortBy === "estimatedHours"
+      ? await prisma.$queryRaw<Array<{ id: string }>>`
+          SELECT id FROM tasks
+          WHERE project_id = ${projectId}::uuid
+            AND search_vector @@ plainto_tsquery('english', ${searchTerm})
+          ORDER BY estimated_hours ASC NULLS LAST, id ASC
+          LIMIT ${pageSize} OFFSET ${offset}
+        `
+      : await prisma.$queryRaw<Array<{ id: string }>>`
+          SELECT id FROM tasks
+          WHERE project_id = ${projectId}::uuid
+            AND search_vector @@ plainto_tsquery('english', ${searchTerm})
+          ORDER BY ts_rank(search_vector, plainto_tsquery('english', ${searchTerm})) DESC,
+                   created_at DESC
+          LIMIT ${pageSize} OFFSET ${offset}
+        `;
+
+  if (ranked.length === 0) return [];
+
+  const ids = ranked.map((r) => r.id);
+
+  // Phase-2: apply any additional filters and load relations.
+  // Note: filters are applied here, after pagination in phase-1.
+  // This means the effective page size may be smaller than requested when
+  // filters eliminate some tsvector matches — an accepted trade-off to
+  // avoid dynamic $queryRaw filter construction.
+  const tasks = await prisma.task.findMany({
+    where: {
+      id: { in: ids },
+      ...(filters.status && { status: filters.status }),
+      ...(filters.priority && { priority: filters.priority }),
+      ...(filters.assigneeId && { assigneeId: filters.assigneeId }),
+      ...((filters.minEstimatedHours !== undefined || filters.maxEstimatedHours !== undefined) && {
+        estimatedHours: {
+          ...(filters.minEstimatedHours !== undefined && { gte: filters.minEstimatedHours }),
+          ...(filters.maxEstimatedHours !== undefined && { lte: filters.maxEstimatedHours }),
+        },
+      }),
+    },
+    include: { project: true },
+  });
+
+  // Restore tsvector rank order — findMany does not guarantee insertion order.
+  const taskMap = new Map(tasks.map((t) => [t.id, t]));
+  return ids.map((id) => taskMap.get(id)).filter((t): t is NonNullable<typeof t> => t != null);
+}
+
 export async function searchTasks(
   projectId: string,
   searchTerm: string,
-  filters: {
-    status?: string;
-    priority?: string;
-    assigneeId?: string;
-    minEstimatedHours?: number;
-    maxEstimatedHours?: number;
-  },
+  filters: SearchFilters,
   page: number = 1,
   pageSize: number = 20,
   sortBy: "createdAt" | "estimatedHours" = "createdAt",
 ) {
+  const trimmed = searchTerm.trim();
+
+  if (trimmed.length > 0) {
+    return searchTasksFullText(projectId, trimmed, filters, page, pageSize, sortBy);
+  }
+
   const tasks = await prisma.task.findMany({
     where: {
       projectId,
-      ...(searchTerm && {
-        OR: [
-          { title: { contains: searchTerm, mode: "insensitive" } },
-          { description: { contains: searchTerm, mode: "insensitive" } },
-        ],
-      }),
       ...(filters.status && { status: filters.status }),
       ...(filters.priority && { priority: filters.priority }),
       ...(filters.assigneeId && { assigneeId: filters.assigneeId }),

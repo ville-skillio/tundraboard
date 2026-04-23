@@ -17,6 +17,7 @@ vi.mock("../src/utils/prisma.js", () => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
+    $queryRaw: vi.fn(),
     $queryRawUnsafe: vi.fn(),
   },
 }));
@@ -72,7 +73,7 @@ describe("Task Routes", () => {
     // and findMany would not be called with parameterised args (second test).
 
     it("never calls $queryRawUnsafe regardless of search input", async () => {
-      vi.mocked(prisma.task.findMany).mockResolvedValue([]);
+      vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
       const token = makeToken();
 
       await request(app)
@@ -83,8 +84,11 @@ describe("Task Routes", () => {
       expect(prisma.$queryRawUnsafe).not.toHaveBeenCalled();
     });
 
-    it("passes the search term as a value inside the Prisma where clause, not a raw string", async () => {
-      vi.mocked(prisma.task.findMany).mockResolvedValue([]);
+    it("passes the search term to $queryRaw (parameterised), never to $queryRawUnsafe", async () => {
+      // Full-text search now uses $queryRaw with tagged template literals,
+      // which Prisma compiles to a prepared statement — the search term is
+      // never string-interpolated into the SQL.
+      vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
       const token = makeToken();
       const injection = "'; DROP TABLE tasks; --";
 
@@ -93,17 +97,8 @@ describe("Task Routes", () => {
         .set("Authorization", `Bearer ${token}`)
         .expect(200);
 
-      expect(prisma.task.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            OR: expect.arrayContaining([
-              expect.objectContaining({
-                title: expect.objectContaining({ contains: injection }),
-              }),
-            ]),
-          }),
-        }),
-      );
+      expect(prisma.$queryRawUnsafe).not.toHaveBeenCalled();
+      expect(prisma.$queryRaw).toHaveBeenCalled();
     });
   });
 
@@ -636,6 +631,98 @@ describe("Task Routes", () => {
           orderBy: [{ createdAt: "desc" }, { id: "asc" }],
         }),
       );
+    });
+  });
+
+  // =========================================================================
+  // Full-text search — tsvector path
+  // =========================================================================
+
+  describe("Full-text search — GET /tasks?search=", () => {
+    it("routes to $queryRaw (not findMany) when a non-empty search term is given", async () => {
+      vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+      await request(app)
+        .get("/tasks?projectId=proj-1&search=authentication")
+        .set("Authorization", `Bearer ${makeToken()}`)
+        .expect(200);
+
+      expect(prisma.$queryRaw).toHaveBeenCalled();
+      expect(prisma.task.findMany).not.toHaveBeenCalled();
+    });
+
+    it("returns an empty array immediately when tsvector returns no matching IDs", async () => {
+      vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+      const res = await request(app)
+        .get("/tasks?projectId=proj-1&search=xyznonexistent")
+        .set("Authorization", `Bearer ${makeToken()}`)
+        .expect(200);
+
+      expect(res.body.data).toEqual([]);
+      // short-circuit: findMany should not be called when $queryRaw returns []
+      expect(prisma.task.findMany).not.toHaveBeenCalled();
+    });
+
+    it("fetches full task records via findMany using the IDs returned by $queryRaw", async () => {
+      vi.mocked(prisma.$queryRaw).mockResolvedValue([{ id: "task-1" }]);
+      vi.mocked(prisma.task.findMany).mockResolvedValue([MOCK_TASK]);
+
+      const res = await request(app)
+        .get("/tasks?projectId=proj-1&search=bug")
+        .set("Authorization", `Bearer ${makeToken()}`)
+        .expect(200);
+
+      expect(prisma.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: { in: ["task-1"] } }),
+          include: { project: true },
+        }),
+      );
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0]).toHaveProperty("id", "task-1");
+    });
+
+    it("preserves tsvector rank order from phase-1 in the final response", async () => {
+      // $queryRaw returns IDs in rank order: task-2 ranked higher than task-1
+      vi.mocked(prisma.$queryRaw).mockResolvedValue([{ id: "task-2" }, { id: "task-1" }]);
+      const task1 = { ...MOCK_TASK, id: "task-1", title: "Login bug" };
+      const task2 = { ...MOCK_TASK, id: "task-2", title: "Authentication failure" };
+      // findMany returns in arbitrary order (task-1 first)
+      vi.mocked(prisma.task.findMany).mockResolvedValue([task1, task2]);
+
+      const res = await request(app)
+        .get("/tasks?projectId=proj-1&search=authentication")
+        .set("Authorization", `Bearer ${makeToken()}`)
+        .expect(200);
+
+      // Response should follow tsvector rank order: task-2 first
+      expect(res.body.data[0]).toHaveProperty("id", "task-2");
+      expect(res.body.data[1]).toHaveProperty("id", "task-1");
+    });
+
+    it("routes to findMany (not $queryRaw) when search term is empty string", async () => {
+      vi.mocked(prisma.task.findMany).mockResolvedValue([]);
+
+      await request(app)
+        .get("/tasks?projectId=proj-1&search=")
+        .set("Authorization", `Bearer ${makeToken()}`)
+        .expect(200);
+
+      expect(prisma.task.findMany).toHaveBeenCalled();
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it("routes to findMany (not $queryRaw) when search term is whitespace only", async () => {
+      vi.mocked(prisma.task.findMany).mockResolvedValue([]);
+
+      await request(app)
+        .get("/tasks?projectId=proj-1&search=   ")
+        .set("Authorization", `Bearer ${makeToken()}`)
+        .expect(200);
+
+      expect(prisma.task.findMany).toHaveBeenCalled();
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
     });
   });
 });
