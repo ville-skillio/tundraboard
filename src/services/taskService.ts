@@ -7,6 +7,7 @@ export async function createTask(data: {
   priority?: string;
   assigneeId?: string;
   createdById: string;
+  estimatedHours?: number;
 }) {
   const task = await prisma.task.create({
     data: {
@@ -16,6 +17,7 @@ export async function createTask(data: {
       priority: data.priority || "medium",
       assigneeId: data.assigneeId || null,
       createdById: data.createdById,
+      estimatedHours: data.estimatedHours ?? null,
     },
   });
 
@@ -42,6 +44,7 @@ type TaskUpdateFields = {
   priority?: string;
   assigneeId?: string | null;
   dueDate?: string | Date | null;
+  estimatedHours?: number | null;
 };
 
 export async function updateTask(id: string, data: TaskUpdateFields) {
@@ -56,6 +59,7 @@ export async function updateTask(id: string, data: TaskUpdateFields) {
       ...(data.dueDate !== undefined && {
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
       }),
+      ...(data.estimatedHours !== undefined && { estimatedHours: data.estimatedHours }),
       updatedAt: new Date(),
     },
   });
@@ -70,9 +74,16 @@ export async function deleteTask(id: string) {
 export async function searchTasks(
   projectId: string,
   searchTerm: string,
-  filters: { status?: string; priority?: string; assigneeId?: string },
+  filters: {
+    status?: string;
+    priority?: string;
+    assigneeId?: string;
+    minEstimatedHours?: number;
+    maxEstimatedHours?: number;
+  },
   page: number = 1,
   pageSize: number = 20,
+  sortBy: "createdAt" | "estimatedHours" = "createdAt",
 ) {
   const tasks = await prisma.task.findMany({
     where: {
@@ -86,9 +97,18 @@ export async function searchTasks(
       ...(filters.status && { status: filters.status }),
       ...(filters.priority && { priority: filters.priority }),
       ...(filters.assigneeId && { assigneeId: filters.assigneeId }),
+      ...((filters.minEstimatedHours !== undefined || filters.maxEstimatedHours !== undefined) && {
+        estimatedHours: {
+          ...(filters.minEstimatedHours !== undefined && { gte: filters.minEstimatedHours }),
+          ...(filters.maxEstimatedHours !== undefined && { lte: filters.maxEstimatedHours }),
+        },
+      }),
     },
     include: { project: true },
-    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+    orderBy:
+      sortBy === "estimatedHours"
+        ? [{ estimatedHours: "asc" }, { id: "asc" }]
+        : [{ createdAt: "desc" }, { id: "asc" }],
     skip: (page - 1) * pageSize,
     take: pageSize,
   });

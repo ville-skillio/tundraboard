@@ -478,4 +478,161 @@ describe("Task Routes", () => {
       );
     });
   });
+
+  // =========================================================================
+  // estimatedHours — new field tests
+  // =========================================================================
+
+  describe("estimatedHours — POST /tasks", () => {
+    it("stores estimatedHours when provided on creation", async () => {
+      vi.mocked(prisma.task.create).mockResolvedValue({ ...MOCK_TASK, estimatedHours: 4.5 });
+
+      const res = await request(app)
+        .post("/tasks")
+        .set("Authorization", `Bearer ${makeToken()}`)
+        .send({ title: "Task with estimate", projectId: "proj-1", estimatedHours: 4.5 })
+        .expect(201);
+
+      expect(prisma.task.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ estimatedHours: 4.5 }),
+        }),
+      );
+      expect(res.body.data).toHaveProperty("estimatedHours", 4.5);
+    });
+
+    it("stores null for estimatedHours when not provided", async () => {
+      vi.mocked(prisma.task.create).mockResolvedValue({ ...MOCK_TASK, estimatedHours: null });
+
+      await request(app)
+        .post("/tasks")
+        .set("Authorization", `Bearer ${makeToken()}`)
+        .send({ title: "No estimate", projectId: "proj-1" })
+        .expect(201);
+
+      expect(prisma.task.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ estimatedHours: null }),
+        }),
+      );
+    });
+  });
+
+  describe("estimatedHours — PATCH /tasks/:id", () => {
+    it("updates estimatedHours when included in the patch body", async () => {
+      vi.mocked(prisma.task.update).mockResolvedValue({ ...MOCK_TASK, estimatedHours: 8 });
+
+      const res = await request(app)
+        .patch("/tasks/task-1")
+        .set("Authorization", `Bearer ${makeToken()}`)
+        .send({ estimatedHours: 8 })
+        .expect(200);
+
+      expect(prisma.task.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ estimatedHours: 8 }),
+        }),
+      );
+      expect(res.body.data).toHaveProperty("estimatedHours", 8);
+    });
+
+    it("clears estimatedHours when explicitly set to null", async () => {
+      vi.mocked(prisma.task.update).mockResolvedValue({ ...MOCK_TASK, estimatedHours: null });
+
+      await request(app)
+        .patch("/tasks/task-1")
+        .set("Authorization", `Bearer ${makeToken()}`)
+        .send({ estimatedHours: null })
+        .expect(200);
+
+      expect(prisma.task.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ estimatedHours: null }),
+        }),
+      );
+    });
+  });
+
+  describe("estimatedHours — GET /tasks filters and sorting", () => {
+    it("applies minEstimatedHours filter as gte constraint", async () => {
+      vi.mocked(prisma.task.findMany).mockResolvedValue([]);
+
+      await request(app)
+        .get("/tasks?projectId=proj-1&minEstimatedHours=4")
+        .set("Authorization", `Bearer ${makeToken()}`)
+        .expect(200);
+
+      expect(prisma.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            estimatedHours: expect.objectContaining({ gte: 4 }),
+          }),
+        }),
+      );
+    });
+
+    it("applies maxEstimatedHours filter as lte constraint", async () => {
+      vi.mocked(prisma.task.findMany).mockResolvedValue([]);
+
+      await request(app)
+        .get("/tasks?projectId=proj-1&maxEstimatedHours=8")
+        .set("Authorization", `Bearer ${makeToken()}`)
+        .expect(200);
+
+      expect(prisma.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            estimatedHours: expect.objectContaining({ lte: 8 }),
+          }),
+        }),
+      );
+    });
+
+    it("combines min and max into a single estimatedHours range", async () => {
+      vi.mocked(prisma.task.findMany).mockResolvedValue([]);
+
+      await request(app)
+        .get("/tasks?projectId=proj-1&minEstimatedHours=2&maxEstimatedHours=10")
+        .set("Authorization", `Bearer ${makeToken()}`)
+        .expect(200);
+
+      expect(prisma.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            estimatedHours: { gte: 2, lte: 10 },
+          }),
+        }),
+      );
+    });
+
+    it("sorts by estimatedHours asc when sortBy=estimatedHours", async () => {
+      vi.mocked(prisma.task.findMany).mockResolvedValue([]);
+
+      await request(app)
+        .get("/tasks?projectId=proj-1&sortBy=estimatedHours")
+        .set("Authorization", `Bearer ${makeToken()}`)
+        .expect(200);
+
+      expect(prisma.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ estimatedHours: "asc" }, { id: "asc" }],
+        }),
+      );
+    });
+
+    it("defaults to createdAt sort when sortBy is not estimatedHours", async () => {
+      vi.mocked(prisma.task.findMany).mockResolvedValue([]);
+
+      await request(app)
+        .get("/tasks?projectId=proj-1")
+        .set("Authorization", `Bearer ${makeToken()}`)
+        .expect(200);
+
+      expect(prisma.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+        }),
+      );
+    });
+  });
 });
