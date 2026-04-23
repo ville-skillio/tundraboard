@@ -1,0 +1,105 @@
+# TundraBoard Computer-Use Agent — Sandbox Configuration
+# Stack: Docker + claude-computer-use-demo (Anthropic reference implementation)
+# Target: TundraBoard staging environment
+
+# ---------------------------------------------------------------------------
+# Identity
+# ---------------------------------------------------------------------------
+agent:
+  name: tundraboard-verification-agent
+  model: claude-opus-4-7          # computer-use capable model
+  prompt_file: prompt.md
+
+# ---------------------------------------------------------------------------
+# Spend controls
+# ---------------------------------------------------------------------------
+budget:
+  spend_cap_usd: 0.50             # hard kill if cumulative token cost exceeds this per run;
+                                  # defends against runaway loops that burn credits unattended
+  input_token_limit: 100000       # prevents a prompt-injection payload from inflating context
+  output_token_limit: 4096        # caps per-turn response size; limits exfiltration via model output
+
+# ---------------------------------------------------------------------------
+# Time controls
+# ---------------------------------------------------------------------------
+timeout:
+  wall_clock_seconds: 300         # SIGKILL after 5 minutes regardless of progress;
+                                  # defends against infinite loops and hung browser sessions
+  idle_seconds: 60                # kill if no tool call is made for 60 s; catches stalled agents
+
+# ---------------------------------------------------------------------------
+# Action budget — approval gate
+# ---------------------------------------------------------------------------
+actions:
+  max_before_approval: 30         # pause and require human confirmation after 30 actions
+                                  # (clicks + keystrokes + screenshots combined); defends against
+                                  # the agent taking a long destructive action sequence unobserved
+  screenshot_interval_steps: 5   # capture screenshot every 5 steps for audit trail
+
+# ---------------------------------------------------------------------------
+# Network egress allowlist
+# ---------------------------------------------------------------------------
+network:
+  egress_allowlist:
+    - host: staging.tundraboard.internal  # TundraBoard staging API + UI; all other hosts blocked
+      ports: [443]
+    - host: api.anthropic.com             # Claude API for model calls; required for agent operation
+      ports: [443]
+  default_policy: deny                    # deny-by-default; defends against data exfiltration to
+                                          # arbitrary hosts and SSRF via the agent's browser
+  dns_allowlist:
+    - staging.tundraboard.internal
+    - api.anthropic.com                   # DNS restricted to allowlist; prevents rebinding attacks
+
+# ---------------------------------------------------------------------------
+# Kill switch
+# ---------------------------------------------------------------------------
+kill_switch:
+  file: /workspace/STOP                   # agent polls for this file between every tool call;
+                                          # operator creates the file to halt the agent immediately
+                                          # without waiting for timeout; defends against runaway
+                                          # behaviour discovered mid-run
+  env_var: AGENT_KILL                     # alternative: set env var AGENT_KILL=1 to halt;
+                                          # useful when filesystem access is not available
+
+# ---------------------------------------------------------------------------
+# Filesystem
+# ---------------------------------------------------------------------------
+filesystem:
+  root_mode: read-only                    # container root is read-only; defends against the agent
+                                          # persisting malware, modifying host tooling, or tampering
+                                          # with its own prompt or config files
+  mounts:
+    - host_path: ./workspace
+      container_path: /workspace
+      mode: read-write                    # writable scratch space for screenshots, logs, and
+                                          # agent-generated artefacts only; isolated from root
+
+# ---------------------------------------------------------------------------
+# Container image
+# ---------------------------------------------------------------------------
+container:
+  image: ghcr.io/anthropics/anthropic-quickstarts:computer-use-demo-latest
+  user: agent                             # non-root user; defends against container escapes that
+                                          # leverage root privileges
+  capabilities_drop: [ALL]               # drop all Linux capabilities; agent needs none
+  capabilities_add: []
+  no_new_privileges: true
+
+# ---------------------------------------------------------------------------
+# Environment variables passed into the container
+# ---------------------------------------------------------------------------
+env:
+  STAGING_BASE_URL: https://staging.tundraboard.internal
+  STAGING_USERNAME: agent-verify@tundraboard.internal
+  STAGING_PASSWORD: "${STAGING_AGENT_PASSWORD}"   # injected from CI secret; never hardcoded
+  ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+  KILL_SWITCH_PATH: /workspace/STOP
+
+# ---------------------------------------------------------------------------
+# Logging and audit
+# ---------------------------------------------------------------------------
+logging:
+  action_log: /workspace/action_log.jsonl   # every tool call recorded with timestamp and args
+  screenshot_dir: /workspace/screenshots    # visual audit trail
+  retention_days: 30
