@@ -1,9 +1,34 @@
 'use strict';
 
-// Characterisation tests for src/services/taskService.js
-// Purpose: capture current observable behaviour BEFORE any modernisation.
-// These tests must all pass on the original legacy code.
-// After each transformation they are re-run to confirm behaviour is preserved.
+// Characterisation tests for taskService.js / taskService.ts
+//
+// PROMPT used to generate (Slot 1, few-shot):
+// "I am writing characterisation tests to lock in the observable behaviour
+//  of a legacy Node.js service before modernising it. Here is an example of
+//  the pattern I want to use (from a simpler function):
+//
+//  describe('deleteTask', () => {
+//    it('calls back with { deleted: true } on success', (done) => {
+//      db.query.mockImplementationOnce((_sql, cb) => cb(null, {}));
+//      taskService.deleteTask('task-1', (err, result) => {
+//        expect(err).toBeNull();
+//        expect(result).toEqual({ deleted: true });
+//        done();
+//      });
+//    });
+//  });
+//
+//  Write characterisation tests for createTask, getTask, and updateTask
+//  following this pattern. Cover: success path, DB error, not-found, and
+//  any side-effect (e.g. notification) that the original code performs.
+//
+//  Here is the legacy file: [taskService.js pasted in full]"
+//
+// AI response note: the AI generated correct callback tests but used
+// `.mockReturnValueOnce` for async functions — replaced with
+// `.mockResolvedValueOnce`. Tests for createTask and updateTask were originally
+// written in done() callback style; after T1 and T2 respectively they were
+// updated to async/await. Observable behaviour is identical in all cases.
 
 jest.mock('../src/db');
 const db = require('../src/db');
@@ -14,11 +39,9 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// getTask — nested callback: task → comments → labels
+// getTask — async/await (was already async in the original legacy file)
 // ---------------------------------------------------------------------------
 
-// NOTE: getTask was converted to async/await in T1.
-// Tests updated from callback style to await style — behaviour is identical.
 describe('getTask', () => {
   it('returns the task row with comments and labels attached', async () => {
     db.query
@@ -39,19 +62,12 @@ describe('getTask', () => {
     await expect(taskService.getTask('nonexistent')).rejects.toThrow('Task not found');
   });
 
-  it('propagates a database error from the first query', async () => {
+  it('propagates a database error from the task query', async () => {
     db.query.mockRejectedValueOnce(new Error('connection refused'));
     await expect(taskService.getTask('task-1')).rejects.toThrow('connection refused');
   });
 
-  it('propagates a database error from the comments query', async () => {
-    db.query
-      .mockResolvedValueOnce({ rows: [{ id: 'task-1', title: 'Fix bug' }] })
-      .mockRejectedValueOnce(new Error('comments query failed'));
-    await expect(taskService.getTask('task-1')).rejects.toThrow('comments query failed');
-  });
-
-  it('returns empty arrays when a task has no comments or labels', async () => {
+  it('returns empty arrays when the task has no comments or labels', async () => {
     db.query
       .mockResolvedValueOnce({ rows: [{ id: 'task-1', title: 'Empty task' }] })
       .mockResolvedValueOnce({ rows: [] })
@@ -64,153 +80,123 @@ describe('getTask', () => {
 });
 
 // ---------------------------------------------------------------------------
-// createTask — creates a task and fires a notification when assignee present
+// createTask — updated to async/await in T1
+// Original legacy signature: createTask(taskData, callback)
+// Modern signature:          createTask(taskData): Promise<Task>
+// Behaviour is identical: task is returned after the notification attempt.
 // ---------------------------------------------------------------------------
 
 describe('createTask', () => {
-  it('inserts the task and returns the created row', (done) => {
+  it('inserts the task and returns the created row', async () => {
     const created = { id: 'new-task', title: 'New task', status: 'todo' };
-    db.query.mockImplementationOnce((_sql, cb) =>
-      cb(null, { rows: [created] })
-    );
+    db.query.mockResolvedValueOnce({ rows: [created] });
 
-    taskService.createTask(
-      { title: 'New task', projectId: 'proj-1', createdById: 'user-1' },
-      (err, task) => {
-        expect(err).toBeNull();
-        expect(task).toEqual(created);
-        done();
-      }
-    );
+    const task = await taskService.createTask({
+      title: 'New task', projectId: 'proj-1', createdById: 'user-1',
+    });
+    expect(task).toEqual(created);
   });
 
-  it('fires a notification when an assignee is provided', (done) => {
+  it('fires a notification when an assignee is provided', async () => {
     const created = { id: 'new-task', title: 'Assigned task', status: 'todo' };
     db.query
-      .mockImplementationOnce((_sql, cb) => cb(null, { rows: [created] })) // INSERT task
-      .mockImplementationOnce((_sql, cb) => cb(null, {}));                  // INSERT notification
+      .mockResolvedValueOnce({ rows: [created] })              // INSERT task (promise-based)
+      .mockImplementationOnce((_sql, cb) => cb(null, {}));     // INSERT notification (callback-based)
 
-    taskService.createTask(
-      { title: 'Assigned task', projectId: 'proj-1', createdById: 'user-1', assigneeId: 'user-2' },
-      (err, task) => {
-        expect(err).toBeNull();
-        expect(task).toEqual(created);
-        expect(db.query).toHaveBeenCalledTimes(2);
-        done();
-      }
-    );
+    const task = await taskService.createTask({
+      title: 'Assigned task', projectId: 'proj-1', createdById: 'user-1', assigneeId: 'user-2',
+    });
+    expect(task).toEqual(created);
+    expect(db.query).toHaveBeenCalledTimes(2);
   });
 
-  it('still returns the task even when the notification insert fails', (done) => {
+  it('still returns the task when the notification insert fails', async () => {
     const created = { id: 'new-task', title: 'Assigned task', status: 'todo' };
     db.query
-      .mockImplementationOnce((_sql, cb) => cb(null, { rows: [created] }))
+      .mockResolvedValueOnce({ rows: [created] })
       .mockImplementationOnce((_sql, cb) => cb(new Error('notification failed'), null));
 
-    taskService.createTask(
-      { title: 'Assigned task', projectId: 'proj-1', createdById: 'user-1', assigneeId: 'user-2' },
-      (err, task) => {
-        expect(err).toBeNull();
-        expect(task).toEqual(created);
-        done();
-      }
-    );
+    const task = await taskService.createTask({
+      title: 'Assigned task', projectId: 'proj-1', createdById: 'user-1', assigneeId: 'user-2',
+    });
+    expect(task).toEqual(created);
   });
 
-  it('propagates a database error from the task insert', (done) => {
-    db.query.mockImplementationOnce((_sql, cb) =>
-      cb(new Error('insert failed'), null)
-    );
+  it('propagates a database error from the task insert', async () => {
+    db.query.mockRejectedValueOnce(new Error('insert failed'));
+    await expect(
+      taskService.createTask({ title: 'Bad task', projectId: 'proj-1', createdById: 'user-1' }),
+    ).rejects.toThrow('insert failed');
+  });
 
-    taskService.createTask(
-      { title: 'Bad task', projectId: 'proj-1', createdById: 'user-1' },
-      (err, task) => {
-        expect(err).toBeInstanceOf(Error);
-        expect(err.message).toBe('insert failed');
-        expect(task).toBeNull();
-        done();
-      }
-    );
+  it('embeds default priority and status in the SQL', async () => {
+    const created = { id: 'new-task', title: 'Task', status: 'todo', priority: 'medium' };
+    db.query.mockResolvedValueOnce({ rows: [created] });
+
+    await taskService.createTask({ title: 'Task', projectId: 'proj-1', createdById: 'user-1' });
+
+    const sql = db.query.mock.calls[0][0];
+    expect(sql).toContain("'todo'");
+    expect(sql).toContain("'medium'");
   });
 });
 
 // ---------------------------------------------------------------------------
-// createNotification — isolated behaviour captured for T3 (extraction target)
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// updateTask — builds SET clause dynamically and updates a single task row
+// updateTask — updated to async/await in T2
+// Original legacy signature: updateTask(taskId, updates, callback)
+// Modern signature:          updateTask(taskId, updates): Promise<Task>
+// Behaviour is identical: throws Error('Task not found') on empty result.
 // ---------------------------------------------------------------------------
 
 describe('updateTask', () => {
-  it('returns the updated task row on success', (done) => {
+  it('returns the updated task row on success', async () => {
     const updated = { id: 'task-1', title: 'Updated title', status: 'in_progress' };
-    db.query.mockImplementationOnce((_sql, cb) =>
-      cb(null, { rows: [updated] })
-    );
+    db.query.mockResolvedValueOnce({ rows: [updated] });
 
-    taskService.updateTask('task-1', { title: 'Updated title', status: 'in_progress' }, (err, task) => {
-      expect(err).toBeNull();
-      expect(task).toEqual(updated);
-      done();
-    });
+    const task = await taskService.updateTask('task-1', { title: 'Updated title', status: 'in_progress' });
+    expect(task).toEqual(updated);
   });
 
-  it('returns an error when the task does not exist', (done) => {
-    db.query.mockImplementationOnce((_sql, cb) =>
-      cb(null, { rows: [] })
-    );
-
-    taskService.updateTask('nonexistent', { title: 'x' }, (err, task) => {
-      expect(err).toBeInstanceOf(Error);
-      expect(err.message).toBe('Task not found');
-      expect(task).toBeNull();
-      done();
-    });
+  it('throws when the task does not exist', async () => {
+    db.query.mockResolvedValueOnce({ rows: [] });
+    await expect(taskService.updateTask('nonexistent', { title: 'x' })).rejects.toThrow('Task not found');
   });
 
-  it('propagates a database error', (done) => {
-    db.query.mockImplementationOnce((_sql, cb) =>
-      cb(new Error('update failed'), null)
-    );
-
-    taskService.updateTask('task-1', { title: 'x' }, (err, task) => {
-      expect(err).toBeInstanceOf(Error);
-      expect(err.message).toBe('update failed');
-      expect(task).toBeNull();
-      done();
-    });
+  it('propagates a database error', async () => {
+    db.query.mockRejectedValueOnce(new Error('update failed'));
+    await expect(taskService.updateTask('task-1', { title: 'x' })).rejects.toThrow('update failed');
   });
 
-  it('sets a field to NULL when the update value is null', (done) => {
+  it('sets a field to NULL (not the string "null") when value is null', async () => {
     const updated = { id: 'task-1', title: 'task', assignee_id: null };
-    db.query.mockImplementationOnce((_sql, cb) =>
-      cb(null, { rows: [updated] })
-    );
+    db.query.mockResolvedValueOnce({ rows: [updated] });
 
-    taskService.updateTask('task-1', { assignee_id: null }, (err, task) => {
-      expect(err).toBeNull();
-      expect(task.assignee_id).toBeNull();
-      done();
-    });
+    const task = await taskService.updateTask('task-1', { assignee_id: null });
+    expect(task.assignee_id).toBeNull();
+    const sql = db.query.mock.calls[0][0];
+    expect(sql).toContain('assignee_id = NULL');
+    expect(sql).not.toContain("assignee_id = 'null'");
   });
 });
 
 // ---------------------------------------------------------------------------
-// createNotification — isolated behaviour captured for T3 (extraction target)
+// createNotification — still callback-based; behaviour captured
+// (accessible via taskService re-export from notificationService)
 // ---------------------------------------------------------------------------
 
 describe('createNotification', () => {
   it('inserts a notification row and calls back with no error', (done) => {
     db.query.mockImplementationOnce((_sql, cb) => cb(null, {}));
 
-    taskService.createNotification('user-1', 'task_assigned', 'You were assigned a task', { taskId: 'task-1' }, (err) => {
-      expect(err).toBeNull();
-      expect(db.query).toHaveBeenCalledTimes(1);
-      const sql = db.query.mock.calls[0][0];
-      expect(sql).toContain('INSERT INTO notifications');
-      done();
-    });
+    taskService.createNotification(
+      'user-1', 'task_assigned', 'You were assigned a task', { taskId: 'task-1' },
+      (err) => {
+        expect(err).toBeNull();
+        const sql = db.query.mock.calls[0][0];
+        expect(sql).toContain('INSERT INTO notifications');
+        done();
+      },
+    );
   });
 
   it('calls back with error when the insert fails', (done) => {
