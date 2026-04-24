@@ -6,9 +6,7 @@ import { fileURLToPath } from "url";
 export const healthRouter = Router();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(
-  readFileSync(join(__dirname, "../../package.json"), "utf-8"),
-);
+const pkg = JSON.parse(readFileSync(join(__dirname, "../../package.json"), "utf-8"));
 
 healthRouter.get("/", (_req, res) => {
   res.json({

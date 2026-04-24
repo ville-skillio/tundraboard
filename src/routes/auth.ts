@@ -22,7 +22,11 @@ authRouter.post("/register", async (req, res, next) => {
     return;
   }
   try {
-    const user = await registerUser(parsed.data.email, parsed.data.password, parsed.data.displayName);
+    const user = await registerUser(
+      parsed.data.email,
+      parsed.data.password,
+      parsed.data.displayName,
+    );
     res.status(201).json({ user });
   } catch (err) {
     next(err);
