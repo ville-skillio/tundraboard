@@ -78,15 +78,16 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # Job 3 — Dependency audit (runs independently of job 2)
-  # Does not need test results — it scans the lockfile directly.
-  # Fails on high or critical severity vulnerabilities.
-  # Running independently means a vulnerable dependency surfaces even when
-  # tests are broken.
+  # Job 3 — Dependency audit (runs after tests pass)
+  # Depends on the test job so the pipeline is fully sequential:
+  # lint-and-typecheck → test → audit. A broken codebase should not deploy
+  # to audit regardless of lockfile state — sequential ordering prevents
+  # partial-pass confusion and means a single failure stops the whole pipeline.
   # ---------------------------------------------------------------------------
   audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
+    needs: test
 
     steps:
       - name: Checkout code
